@@ -3,6 +3,7 @@
 #include <list>
 #include <vector>
 
+// some shortcuts for type defenition
 namespace checker
 {
     template <typename T>
@@ -42,10 +43,14 @@ namespace checker
     {
     };
 
+    template <class T, class... Rest>
+    inline constexpr bool are_all_same = (std::is_same_v<T, Rest> && ...);
+
 } // namespace checker
 
-template <typename T, typename std::enable_if<checker::is_list_or_vector<T>::value, T>::type * = nullptr>
-void print_ip(T t)
+// print for list and vector
+template <typename T>
+void print_ip(T t, typename std::enable_if<checker::is_list_or_vector<T>::value, T>::type * = nullptr)
 {
     auto last_iter = --t.end();
     for (auto it = t.begin(); it != t.end(); ++it)
@@ -56,11 +61,12 @@ void print_ip(T t)
             std::cout << ".";
         }
     }
-    std::cout << '\n';
+    std::cout << std::endl;
 }
 
-template <typename T, typename std::enable_if<checker::is_integer<T>::value, T>::type = 0>
-void print_ip(T t)
+// print for integer
+template <typename T>
+void print_ip(T t, typename std::enable_if<checker::is_integer<T>::value, T>::type * = nullptr)
 {
     unsigned char bytes[sizeof t];
     std::copy(static_cast<const char *>(static_cast<const void *>(&t)),
@@ -77,10 +83,27 @@ void print_ip(T t)
     std::cout << std::endl;
 }
 
+// print for string
 template <typename T, typename std::enable_if<std::is_same<std::string, T>::value>::type * = nullptr>
 void print_ip(T t)
 {
     std::cout << t << std::endl;
+}
+
+// print for tuple helper
+template <typename TupType, size_t... I>
+void print_ip(const TupType &_tup, std::index_sequence<I...>)
+{
+
+    (..., (std::cout << (I == 0 ? "" : ".") << std::get<I>(_tup)));
+    std::cout << "\n";
+}
+
+// print for tuple
+template <typename... T>
+void print_ip(const std::tuple<T...> &_tup, typename std::enable_if<checker::are_all_same<T...>>::type * = nullptr)
+{
+    print_ip(_tup, std::make_index_sequence<sizeof...(T)>());
 }
 
 int main()
@@ -92,6 +115,6 @@ int main()
     print_ip(std::string{"Hello, World!"});         // Hello, World!
     print_ip(std::vector<int>{100, 200, 300, 400}); // 100.200.300.400
     print_ip(std::list<short>{400, 300, 200, 100}); // 400.300.200.100
-    // print_ip(std::make_tuple(123, 456, 789, 0));    // 123.456.789.0
+    print_ip(std::make_tuple(123, 456, 789, 0));    // 123.456.789.0
     return 0;
 }
