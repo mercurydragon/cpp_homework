@@ -3,30 +3,30 @@ cmake_minimum_required(VERSION 3.10)
 set(PATCH_VERSION "1" CACHE INTERNAL "Patch version")
 set(PROJECT_VESRION 0.0.${PATCH_VERSION})
 
-project(print_ip VERSION ${PROJECT_VESRION})
+project(allocator VERSION ${PROJECT_VESRION})
 
 find_package(Boost COMPONENTS unit_test_framework REQUIRED)
 
 configure_file(version.h.in version.h)
 
-add_executable(print_ip print_ip.cpp)
+add_executable(allocator allocator.cpp)
 
-set_target_properties(print_ip PROPERTIES
+set_target_properties(allocator PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
 
-target_include_directories(print_ip
+target_include_directories(allocator
     PRIVATE "${CMAKE_BINARY_DIR}"
 )
 
 if (MSVC)
-    target_compile_options(print_ip PRIVATE
+    target_compile_options(allocator PRIVATE
         /W4
     )
 else ()
 
-    target_compile_options(print_ip PRIVATE
+    target_compile_options(allocator PRIVATE
         -Wall -Wextra -pedantic -Werror
     )
 
@@ -34,7 +34,7 @@ endif()
 
 
 
-install(TARGETS print_ip RUNTIME DESTINATION bin)
+install(TARGETS allocator RUNTIME DESTINATION bin)
 
 set(CPACK_GENERATOR DEB)
 
