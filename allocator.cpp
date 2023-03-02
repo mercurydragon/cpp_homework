@@ -13,12 +13,27 @@
 template <typename T, std::size_t n>
 struct reserve_allocator
 {
+
     using value_type = T;
 
     using pointer = T *;
     using const_pointer = const T *;
     using reference = T &;
     using const_reference = const T &;
+
+    struct memory_chunk
+    {
+        pointer reserved;
+        memory_chunk *next_chunk = nullptr;
+
+        memory_chunk(){};
+
+        memory_chunk(pointer p)
+        {
+            reserved = p;
+            next_chunk = nullptr;
+        };
+    };
 
     template <typename U>
     struct rebind
@@ -33,23 +48,32 @@ struct reserve_allocator
 #else
         std::cout << __PRETTY_FUNCTION__ << "[n = " << n << "]" << std::endl;
 #endif
-        this->max_size = n * sizeof(T);
-        auto p = std::malloc(this->max_size);
-        if (!p)
+        max_size = n * sizeof(T);
+        auto p = static_cast<T *>(std::malloc(max_size));
+        first_p = new memory_chunk(p);
+        if (!first_p->reserved)
             throw std::bad_alloc();
-        this->p = reinterpret_cast<T *>(p);
-        this->used_size = 0;
-        this->deallocated = false;
+        used_size = 0;
     }
 
     ~reserve_allocator()
     {
+        auto p = this->first_p;
+        while (p->next_chunk != nullptr)
+        {
+            auto next = p->next_chunk;
+            if (p->reserved != nullptr)
+            {
+                std::free(p->reserved);
+                delete p;
+            }
+            p = next;
+        }
     }
 
     template <typename U, std::size_t m>
     reserve_allocator(const reserve_allocator<U, n> &)
     {
-        std::free(this->p);
     }
 
     T *allocate(std::size_t m)
@@ -59,29 +83,29 @@ struct reserve_allocator
 #else
         std::cout << __PRETTY_FUNCTION__ << "[m = " << m << "]" << std::endl;
 #endif
-        auto new_size = this->used_size + m * sizeof(T);
-        if (new_size > this->max_size)
+        auto alocate_size = m * sizeof(T);
+        auto full_size = used_size + alocate_size;
+        if (full_size > max_size)
         {
             // удвоим размер выделенной памяти, а если не поместится - выделим ровно сколько нужно
-            auto duble_size = 2 * this->max_size;
-            this->max_size = new_size < duble_size ? duble_size : new_size;
-            std::cout << __PRETTY_FUNCTION__ << "Reallocate to " << this->max_size << std::endl;
-            auto new_p = std::malloc(this->max_size);
-            std::memcpy(new_p, this->p, sizeof *this->p); // судя по дебагу, memcpy тут не нужно, значения сами попадают в новый указатель, но я не понимаю почему ¯\_(ツ)_/¯
-            std::free(this->p);
-            this->p = reinterpret_cast<T *>(new_p);
+            auto new_size = alocate_size < max_size ? max_size : alocate_size;
+            std::cout << __PRETTY_FUNCTION__ << "Reallocate to " << max_size + new_size << std::endl;
+            get_last_p()->next_chunk = new memory_chunk(static_cast<T *>(std::malloc(new_size)));
+            this->used_size = 0;
         }
         auto old_size = this->used_size;
-        this->used_size = new_size;
-        return this->p + old_size;
+        this->used_size = full_size;
+        return get_last_p()->reserved + old_size;
     }
 
     void deallocate(T *p, std::size_t m)
     {
 #ifndef USE_PRETTY
-        std::cout << "Dump deallocate" << "[m = " << m << ", p =" << p << "]" << std::endl;
+        std::cout << "Dump deallocate"
+                  << "[m = " << m << ", p =" << p << "]" << std::endl;
 #else
-        std::cout << __PRETTY_FUNCTION__ << "[m = " << m << ", p =" << p << "]" << " Dump deallocate" << std::endl;
+        std::cout << __PRETTY_FUNCTION__ << "[m = " << m << ", p =" << p << "]"
+                  << " Dump deallocate" << std::endl;
 #endif
         // освобождаем всю память за раз  в дестукторе
     }
@@ -106,12 +130,22 @@ struct reserve_allocator
         std::cout << __PRETTY_FUNCTION__ << std::endl;
 #endif
         p->~U();
+        p = nullptr;
     }
 
 private:
-    pointer p;
+    memory_chunk *first_p;
     std::size_t max_size, used_size;
-    bool deallocated;
+
+    memory_chunk *get_last_p()
+    {
+        auto p = this->first_p;
+        while (p->next_chunk != nullptr)
+        {
+            p = p->next_chunk;
+        }
+        return p;
+    }
 };
 
 namespace odl
@@ -142,11 +176,22 @@ namespace odl
         {
             this->allocator = allocator_type();
         }
-        ~OneDList() = default;
+
+        ~OneDList()
+        {
+            auto node = this->head;
+            while (node->next != nullptr)
+            {
+                auto prev = node;
+                node = node->next;
+                this->allocator.deallocate(prev, 1);
+            }
+            this->allocator.deallocate(node, 1);
+        };
 
         void add(T data)
         {
-            auto p = allocator.allocate(sizeof(value_type));
+            auto p = allocator.allocate(1);
             allocator.construct(p, data);
             if (this->head == nullptr)
             {
@@ -165,15 +210,6 @@ namespace odl
             }
         }
 
-        Node<T> *next(Node<T> *current)
-        {
-            if (current == this->tail)
-            {
-                return nullptr;
-            }
-            return current->next;
-        }
-
         Node<T> *head = nullptr, *tail = nullptr;
 
         void print()
@@ -182,7 +218,7 @@ namespace odl
             while (node != nullptr)
             {
                 std::cout << node->data << std::endl;
-                node = this->next(node);
+                node = node->next;
             }
         }
 
@@ -192,7 +228,7 @@ namespace odl
 }
 int main(int, char *[])
 {
-    auto m_custom = std::map<int, int, std::less<int>, reserve_allocator<std::pair<const int, int>, 10>>{};
+    auto m_custom = std::map<int, int, std::less<int>, reserve_allocator<std::pair<const int, int>, 2>>{}; // 2 < 10 будет реаллокация 
 
     for (int i = 0; i < 10; ++i)
     {
