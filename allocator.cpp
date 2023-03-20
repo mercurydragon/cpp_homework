@@ -25,13 +25,21 @@ struct reserve_allocator
     {
         pointer reserved;
         memory_chunk *next_chunk = nullptr;
+        bool is_main_pointer = false;
 
-        memory_chunk(){};
+        memory_chunk() = default;;
 
         memory_chunk(pointer p)
         {
             reserved = p;
             next_chunk = nullptr;
+        };
+
+        memory_chunk(std::size_t size)
+        {
+            reserved = static_cast<T *>(std::malloc(size));
+            next_chunk = nullptr;
+            is_main_pointer = true;
         };
     };
 
@@ -48,27 +56,14 @@ struct reserve_allocator
 #else
         std::cout << __PRETTY_FUNCTION__ << "[n = " << n << "]" << std::endl;
 #endif
-        max_size = n * sizeof(T);
-        auto p = static_cast<T *>(std::malloc(max_size));
-        first_p = new memory_chunk(p);
-        if (!first_p->reserved)
-            throw std::bad_alloc();
-        used_size = 0;
+        reserve_memory();
+        used_chunk = nullptr;
     }
 
     ~reserve_allocator()
     {
-        auto p = this->first_p;
-        while (p->next_chunk != nullptr)
-        {
-            auto next = p->next_chunk;
-            if (p->reserved != nullptr)
-            {
-                std::free(p->reserved);
-                delete p;
-            }
-            p = next;
-        }
+        if (used_chunk != nullptr) free_chuncks_list(this->used_chunk);
+        if (free_chunk != nullptr) free_chuncks_list(this->free_chunk);
     }
 
     template <typename U, std::size_t m>
@@ -83,19 +78,19 @@ struct reserve_allocator
 #else
         std::cout << __PRETTY_FUNCTION__ << "[m = " << m << "]" << std::endl;
 #endif
-        auto alocate_size = m * sizeof(T);
-        auto full_size = used_size + alocate_size;
-        if (full_size > max_size)
-        {
-            // удвоим размер выделенной памяти, а если не поместится - выделим ровно сколько нужно
-            auto new_size = alocate_size < max_size ? max_size : alocate_size;
-            std::cout << __PRETTY_FUNCTION__ << "Reallocate to " << max_size + new_size << std::endl;
-            get_last_p()->next_chunk = new memory_chunk(static_cast<T *>(std::malloc(new_size)));
-            this->used_size = 0;
+        // в констукторе мы нарезали чанков для одного объекта типа T (так как это самый частых сценарий аллокации), если m == 1 то вернем зарезервированный чанк, иначе - нарежем новый
+        memory_chunk * used;
+        if (m == 1) {
+            if (free_chunk == nullptr)
+                reserve_memory(); // резервируем еще n памяти
+            used = free_chunk;
+            free_chunk = free_chunk->next_chunk;
+        } else {
+            used = new memory_chunk(m * sizeof(T));
         }
-        auto old_size = this->used_size;
-        this->used_size = full_size;
-        return get_last_p()->reserved + old_size;
+        used->next_chunk = used_chunk;
+        used_chunk = used;
+        return used->reserved;
     }
 
     void deallocate(T *p, std::size_t m)
@@ -134,18 +129,40 @@ struct reserve_allocator
     }
 
 private:
-    memory_chunk *first_p;
-    std::size_t max_size, used_size;
+    memory_chunk *free_chunk, *used_chunk;
 
-    memory_chunk *get_last_p()
-    {
-        auto p = this->first_p;
+    void reserve_memory() {
+#ifndef USE_PRETTY
+        std::cout << "reserve_memory" << std::endl;
+#else
+        std::cout << __PRETTY_FUNCTION__ << std::endl;
+#endif
+        auto p = static_cast<T *>(malloc(n * sizeof(T)));
+        free_chunk = new memory_chunk(p);
+        free_chunk->is_main_pointer = true;
+        if (!free_chunk->reserved)
+            throw std::bad_alloc();
+        auto current = free_chunk;
+        for (unsigned long i = 1; i < n; i++) {
+            current->next_chunk = new memory_chunk(static_cast<T *>(current->reserved + sizeof(T)));
+            current = current->next_chunk;
+        }
+    }
+
+    void free_chuncks_list(memory_chunk *p) const {
         while (p->next_chunk != nullptr)
         {
-            p = p->next_chunk;
+            auto next = p->next_chunk;
+            if (p->reserved != nullptr)
+            {
+                if (p->is_main_pointer)
+                    free(p->reserved);
+                delete p;
+            }
+            p = next;
         }
-        return p;
     }
+
 };
 
 namespace odl
@@ -226,6 +243,8 @@ namespace odl
         allocator_type allocator;
     };
 }
+
+
 int main(int, char *[])
 {
     auto m_custom = std::map<int, int, std::less<int>, reserve_allocator<std::pair<const int, int>, 2>>{}; // 2 < 10 будет реаллокация 
