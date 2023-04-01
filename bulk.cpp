@@ -25,7 +25,7 @@ void save_file(const std::string &cmd_str, long timestamp) {
 }
 
 void process_commands(std::forward_list<std::string> &bulk, long timestamp) {
-    if (distance(bulk.begin(), bulk.end()) == 0) {
+    if (std::distance(bulk.begin(), bulk.end()) == 0) {
         return;
     }
     std::string cmd_str = format_commnads(bulk);
