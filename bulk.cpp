@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
     try {
         n = std::stoi(argv[1]);
     }
-    catch (const std::exception) {
+    catch (std::exception const &) {
         throw std::invalid_argument("You should pass a number");
     };
     if (n <= 0) {
