@@ -38,7 +38,7 @@ void run_command_processing(int n) {
     auto block_count = 0;
     long tmstmp = 0;
     std::string cmd;
-    std::__1::forward_list<std::string> bulk;
+    std::forward_list<std::string> bulk;
     while (std::getline(std::cin, cmd)) {
         if (cmd == "{") {
             if (block_count == 0) {
