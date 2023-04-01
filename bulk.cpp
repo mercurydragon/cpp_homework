@@ -58,7 +58,7 @@ void run_command_processing(int n) {
                 tmstmp = std::time(nullptr);
             }
             bulk.push_front(cmd);
-            if (block_count == 0 && distance(bulk.begin(), bulk.end()) == n) {
+            if (block_count == 0 && std::distance(bulk.begin(), bulk.end()) == n) {
                 process_commands(bulk, tmstmp);
             }
         }
