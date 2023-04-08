@@ -18,7 +18,7 @@ std::string format_commnads(std::forward_list<std::string> &bulk) {
 void out_to_console(const std::string &cmd_str) { std::cout << cmd_str << std::endl; }
 
 void save_file(const std::string &cmd_str, long timestamp) {
-    auto file_name = "bulk_" + std::to_string(timestamp) + ".log";
+    auto file_name = "bulk" + std::to_string(timestamp) + ".log";
     std::ofstream log_file(file_name);
     log_file << cmd_str;
     log_file.close();
