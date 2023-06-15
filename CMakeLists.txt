@@ -2,31 +2,36 @@ cmake_minimum_required(VERSION 3.10)
 
 set(PATCH_VERSION "1" CACHE INTERNAL "Patch version")
 set(PROJECT_VESRION 0.0.${PATCH_VERSION})
+include_directories(${Boost_INCLUDE_DIR})
 
-project(bulk VERSION ${PROJECT_VESRION})
+project(bayan VERSION ${PROJECT_VESRION})
 
-find_package(Boost COMPONENTS unit_test_framework REQUIRED)
+find_package(Boost COMPONENTS filesystem)
 
 configure_file(version.h.in version.h)
 
-add_executable(bulk bulk.cpp)
+add_executable(bayan bayan.cpp)
 
-set_target_properties(bulk PROPERTIES
+set_target_properties(bayan PROPERTIES
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
 )
 
-target_include_directories(bulk
+target_include_directories(bayan
     PRIVATE "${CMAKE_BINARY_DIR}"
 )
 
+target_link_libraries(bayan
+    ${Boost_FILESYSTEM_LIBRARY}
+)
+
 if (MSVC)
-    target_compile_options(bulk PRIVATE
+    target_compile_options(bayan PRIVATE
         /W4
     )
 else ()
 
-    target_compile_options(bulk PRIVATE
+    target_compile_options(bayan PRIVATE
         -Wall -Wextra -pedantic -Werror
     )
 
@@ -34,7 +39,7 @@ endif()
 
 
 
-install(TARGETS bulk RUNTIME DESTINATION bin)
+install(TARGETS bayan RUNTIME DESTINATION bin)
 
 set(CPACK_GENERATOR DEB)
 
