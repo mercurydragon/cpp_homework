@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.10)
 
 set(PATCH_VERSION "1" CACHE INTERNAL "Patch version")
-set(PROJECT_VESRION 0.0.${PATCH_VERSION})
+set(PROJECT_VERSRION 0.0.${PATCH_VERSION})
 include_directories(${Boost_INCLUDE_DIR})
 
 project(bayan VERSION ${PROJECT_VESRION})
 
 find_package(Boost COMPONENTS filesystem)
-
+FIND_PACKAGE(Boost COMPONENTS program_options REQUIRED)
+INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
 configure_file(version.h.in version.h)
 
 add_executable(bayan bayan.cpp)
@@ -23,6 +24,7 @@ target_include_directories(bayan
 
 target_link_libraries(bayan
     ${Boost_FILESYSTEM_LIBRARY}
+        ${Boost_LIBRARIES}
 )
 
 if (MSVC)
